@@ -1,0 +1,150 @@
+# ----------------------------------------------
+# Step 1: Import Required Libraries
+# ----------------------------------------------
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.cluster import KMeans
+from sklearn.pipeline import Pipeline
+
+# ----------------------------------------------
+# Step 2: Load the Dataset
+# ----------------------------------------------
+df = pd.read_csv('housing.csv')  # Make sure the dataset is in your working directory
+
+# ----------------------------------------------
+# Step 3: Clean Column Names
+# ----------------------------------------------
+df.columns = [col.strip().replace(' ', '_').lower() for col in df.columns]
+
+# ----------------------------------------------
+# Step 4: Display Initial Overview
+# ----------------------------------------------
+print("\nFirst 5 Rows:")
+print(df.head())
+
+print("\nData Types:")
+print(df.dtypes)
+
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+print("\nStatistical Summary:")
+print(df.describe())
+
+# ----------------------------------------------
+# Step 5: Correlation Heatmap (for numerical features only)
+# ----------------------------------------------
+plt.figure(figsize=(10, 6))
+sns.heatmap(df.corr(numeric_only=True), annot=True, cmap='coolwarm', fmt='.2f')
+plt.title('Correlation Heatmap')
+plt.show()
+
+# ----------------------------------------------
+# Step 6: Visualizing Distributions of Key Features
+# ----------------------------------------------
+plt.figure(figsize=(18, 8))
+
+plt.subplot(2, 3, 1)
+sns.histplot(df['price'], kde=True, color='skyblue')
+plt.title('Price Distribution')
+
+plt.subplot(2, 3, 2)
+sns.histplot(df['area'], kde=True, color='salmon')
+plt.title('Area Distribution')
+
+plt.subplot(2, 3, 3)
+sns.countplot(x='bedrooms', data=df, palette='Set2')
+plt.title('Bedroom Count')
+
+plt.subplot(2, 3, 4)
+sns.countplot(x='bathrooms', data=df, palette='Set3')
+plt.title('Bathroom Count')
+
+plt.subplot(2, 3, 5)
+sns.countplot(x='stories', data=df, palette='pastel')
+plt.title('Stories Count')
+
+plt.tight_layout()
+plt.show()
+
+# ----------------------------------------------
+# Step 7: Scatter Plot - Price vs Area (Colored by Bedrooms)
+# ----------------------------------------------
+plt.figure(figsize=(8, 6))
+plt.scatter(df['area'], df['price'], c=df['bedrooms'], cmap='plasma', s=60)
+plt.xlabel('Area')
+plt.ylabel('Price')
+plt.title('Price vs Area (Colored by Bedrooms)')
+plt.colorbar(label='Bedrooms')
+plt.grid(True)
+plt.show()
+
+# ----------------------------------------------
+# Step 8: One-Hot Encoding of Categorical Features
+# ----------------------------------------------
+categorical_cols = ['mainroad', 'guestroom', 'basement', 'hotwaterheating', 
+                    'airconditioning', 'prefarea', 'furnishingstatus']
+
+# Use pandas get_dummies for simplicity in this workflow
+df_encoded = pd.get_dummies(df, columns=categorical_cols, drop_first=True)
+
+# ----------------------------------------------
+# Step 9: Select Features for Clustering
+# ----------------------------------------------
+features = ['price', 'area', 'bedrooms', 'bathrooms', 'stories'] + \
+           [col for col in df_encoded.columns if col not in ['price', 'area', 'bedrooms', 'bathrooms', 'stories'] and col != 'cluster']
+X = df_encoded[features]
+
+# ----------------------------------------------
+# Step 10: Elbow Method to Determine Optimal K
+# ----------------------------------------------
+inertia = []
+for k in range(1, 11):
+    kmeans = KMeans(n_clusters=k, random_state=42)
+    kmeans.fit(X)
+    inertia.append(kmeans.inertia_)
+
+plt.figure(figsize=(6, 4))
+plt.plot(range(1, 11), inertia, marker='o')
+plt.xlabel('Number of Clusters')
+plt.ylabel('Inertia')
+plt.title('Elbow Method to Determine Optimal K')
+plt.grid(True)
+plt.show()
+
+# ----------------------------------------------
+# Step 11: Apply KMeans Clustering (Assume k=4)
+# ----------------------------------------------
+kmeans = KMeans(n_clusters=4, random_state=42)
+df_encoded['cluster'] = kmeans.fit_predict(X)
+
+# ----------------------------------------------
+# Step 12: Visualize Clusters (Based on Price & Area)
+# ----------------------------------------------
+plt.figure(figsize=(8, 6))
+sns.scatterplot(
+    x='area', y='price', hue='cluster', data=df_encoded,
+    palette='tab10', s=70
+)
+plt.scatter(
+    kmeans.cluster_centers_[:, 1],  # Area
+    kmeans.cluster_centers_[:, 0],  # Price
+    s=200, c='black', marker='X', label='Centroids'
+)
+plt.title('Housing Clusters (k=4)')
+plt.xlabel('Area')
+plt.ylabel('Price')
+plt.legend()
+plt.grid(True)
+plt.show()
+
+# ----------------------------------------------
+# Step 13: Cluster Summary
+# ----------------------------------------------
+print("\nCluster Summary (Mean Values):")
+summary = df_encoded.groupby('cluster')[['price', 'area', 'bedrooms', 'bathrooms', 'stories']].mean()
+print(summary)
